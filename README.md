@@ -16,7 +16,7 @@ The test have been executed using Hive, Spark and Impala readers. All tests are
 passing (skipped tests are the result of non-supported data types in certain
 components):
 
-![Passing Spark tests](column-index-testing-passing-spark-tests.png)
+![Passing tests](column-index-testing-passing-tests.png)
 
 The exact meaning of these results depends on the component used for reading:
 
@@ -26,23 +26,8 @@ The exact meaning of these results depends on the component used for reading:
 
 - Java readers, on the other hand, automatically take advantage of column
   indexes without any code modification, provided that they correctly push down
-  predicates to parquet-mr.
-
-    - In spite of this, we could not get Hive to use column index filtering. We
-      tracked down the source of the issue to a problem in Hive. Hive reads from
-      parquet-mr in two steps. First it checks for potentially matching row
-      groups, correctly setting the predicates in the configuration object
-      passed to parquet-mr. Later, however, it uses a different configuration
-      object for reading the records themselves, and this latter one does not
-      contain the predicate. We are still investigating this issue and will
-      prepare a fix once we pinpoint the exact source problem. Until then, Hive
-      correctly reads and filters data written by parquet-mr 1.11.0, but does
-      not use column index filtering for doing so.
-
-    - Spark correctly pushes down predicates to parquet-mr, thus automatically
-      takes advantage of column index filtering as well. The results of Spark
-      tests therefore confirm the correctness of the column index writing and
-      filtering.
+  predicates to parquet-mr. The results of Spark and Hive tests therefore
+  confirm the correctness of the column index writing and filtering.
 
 # Fault injection
 
@@ -58,15 +43,8 @@ tested independently:
   DESCENDING for ascending values and ASCENDING for descending or non-sorted
   values.
 
-As expected, both of these changes resulted in test failures in Spark:
+As expected, both of these changes resulted in test failures when using Spark or
+Hive (this test run has less test cases in total because it was restricted to
+the equality relation):
 
 ![Corrupted indexes cause test failures, as expected](column-index-testing-failing-tests-with-corrupted-indexes.png)
-
-Tests are failing for all types except INT96, DECIMAL_BINARY and unannotated
-FIXED. INT96 is passing despite the corrupt indexes because it is not supported
-by column index filtering. The other two types are passing despite the corrupt
-indexes because Spark does not push down predicates for those types. (It is
-worth noting that Spark does push down predicates for other variations of these
-types, and those cause failures as expected: the DECIMAL type using any other
-representation than BINARY and the FIXED type annotated with the UTF8 logical
-type all trigger column index filtering.)

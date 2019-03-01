@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -313,15 +314,17 @@ public class ColumnIndexFiltering {
   }
 
   private String rowsToString(List<List<Object>> rows) {
-    String retval = "";
+    StringJoiner table = new StringJoiner("\n");
     for (int i = 0, n = rows.size(); i < n; ++i) {
       List<Object> row = rows.get(i);
+      StringJoiner line = new StringJoiner("\t");
       for (int j = 0, m = row.size(); j < m; ++j) {
-        retval += row.get(j);
+        Object value = row.get(j);
+        line.add(value == null ? "NULL" : value.toString());
       }
-      retval += "\n";
+      table.add(line.toString());
     }
-    return retval;
+    return table.toString();
   }
 
   private void validateData(List<List<Object>> referenceRows, List<List<Object>> actualRows) {

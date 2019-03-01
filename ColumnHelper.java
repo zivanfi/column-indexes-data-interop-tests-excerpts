@@ -1,4 +1,3 @@
-// (c) Copyright 2019 Cloudera, Inc.
 package com.cloudera.cdh.tests.parquet.columnindexfiltering;
 
 import static com.cloudera.cdh.test.common.Component.HIVE;
@@ -87,6 +86,7 @@ enum ColumnHelper {
       return new TestValues<Long>(Long.MIN_VALUE + 1, -42L, 42L, Long.MAX_VALUE - 1);
     }
   },
+  // INT96 is the de-facto standard timestamp for Impala, Hive and Spark however, not specified in Parquet
   INT96 {
     @Override
     public Type getSchema() {
