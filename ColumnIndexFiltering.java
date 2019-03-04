@@ -8,7 +8,6 @@ import static org.junit.Assume.assumeTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -31,7 +30,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.apache.parquet.schema.Types.GroupBuilder;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -64,9 +62,9 @@ public class ColumnIndexFiltering {
 
   // We want to reuse tables between individual test cases.
   private static Map<Editable, TableReference> tblRefMap = new HashMap<>();
+  private static final FileSystem fs = getFileSystem();
 
   private final List<ColumnHelper> supportedHelpers;
-  private final FileSystem fs;
   private final SQLTextQueryable reader;
   private final Editable writer;
   private final ColumnHelper columnHelper;
@@ -87,8 +85,6 @@ public class ColumnIndexFiltering {
     compression = params.getCompression();
     params.checkAllParamsRetrieved();
 
-    fs = new HDFSClient().getFileSystem();
-
     List<ColumnHelper> columnList = new ArrayList<>();
     for (ColumnHelper helper : ColumnHelper.values())
       if (helper.isSupported(reader.getComponent()))
@@ -98,16 +94,23 @@ public class ColumnIndexFiltering {
     if (tblRef == null) {
       String prefix = getClass().getSimpleName() + '_' + writer.getComponent().name();
       tblRef = TableReference.generateTableReference(prefix);
-      workingDir = createWorkingDir(tblRef.getName());
+      workingDir = getWorkingDir(tblRef);
+      createDir(workingDir);
       createParquetTable();
       tblRefMap.put(params.getWriter(), tblRef);
     }
   }
 
   @AfterClass
-  public static void afterClass() {
+  public static void cleanup() throws Exception {
+    if (TableReference.KEEP_TABLES) {
+      return;
+    }
     for (Map.Entry<Editable, TableReference> entry : tblRefMap.entrySet()) {
-      entry.getValue().drop(entry.getKey());
+      TableReference tblRef = entry.getValue();
+      Editable component = entry.getKey();
+      fs.delete(getWorkingDir(tblRef), true);
+      tblRef.drop(component);
     }
   }
 
@@ -278,12 +281,13 @@ public class ColumnIndexFiltering {
       throw new IllegalArgumentException("Unsupported type for parquet write: " + c);
   }
 
-  private Path createWorkingDir(String dirName) throws IOException {
-    Path home = fs.getHomeDirectory();
-    Path workingDir = new Path(home, dirName);
-    fs.mkdirs(workingDir, new FsPermission(FsAction.ALL, FsAction.ALL, FsAction.ALL));
-    LOGGER.info("Working directory \"{}\" is created", workingDir);
-    return workingDir;
+  private void createDir(Path dir) throws IOException {
+    fs.mkdirs(dir, new FsPermission(FsAction.ALL, FsAction.ALL, FsAction.ALL));
+    LOGGER.info("Directory \"{}\" created.", dir);
+  }
+
+  private static Path getWorkingDir(TableReference tblRef) throws Exception {
+    return new Path(fs.getHomeDirectory(), tblRef.getName());
   }
 
   private void validateQueryResults(String query) throws Exception {
@@ -334,10 +338,12 @@ public class ColumnIndexFiltering {
     assertEquals(reference, actual);
   }
 
-  @After
-  public void cleanup() throws IOException {
-    tblRef.drop(writer);
-    if (!TableReference.KEEP_TABLES)
-      fs.delete(workingDir, true);
+  private static FileSystem getFileSystem() {
+    try {
+      return new HDFSClient().getFileSystem();
+    } catch (Exception e) {
+      LOGGER.error("Could not get filesystem.", e);
+      return null;
+    }
   }
 }
